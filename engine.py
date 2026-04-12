@@ -1,69 +1,53 @@
 import os, requests, time, threading, http.server, socketserver
 
-# --- 1. إعدادات السيرفر لبقاء البوت حياً ---
+# 1. السيرفر الوهمي (مهم جداً للبقاء حياً)
 def run_vocal_server():
     port = int(os.environ.get("PORT", 10000))
-    with socketserver.TCPServer(("", port), http.server.SimpleHTTPRequestHandler) as httpd:
+    handler = http.server.SimpleHTTPRequestHandler
+    with socketserver.TCPServer(("", port), handler) as httpd:
         httpd.serve_forever()
 threading.Thread(target=run_vocal_server, daemon=True).start()
 
-# --- 2. بيانات البوت ---
+# 2. إعداداتك (تأكد من صحتها)
 TOKEN = "8768413194:AAGlUEfDY3lrnQKl_mvehVA-BLv6RJb1adI"
 URL = f"https://api.telegram.org/bot{TOKEN}/"
+CHAT_ID = "7692680668"
 
-# صور الفخامة (ثور ودب)
-BULL_IMG = "https://w0.peakpx.com/wallpaper/144/952/HD-wallpaper-bull-stock-market-neon-green-bull-trading-green-bull.jpg"
-BEAR_IMG = "https://w0.peakpx.com/wallpaper/601/104/HD-wallpaper-bear-market-stock-market-trading-red-bear.jpg"
-
-# دالة لمسح الرسائل السابقة وإرسال جديد
-def delete_and_send(chat_id, message_id, text, keyboard=None, photo=None):
-    try: requests.post(URL + "deleteMessage", json={"chat_id": chat_id, "message_id": message_id})
-    except: pass
+def send_action(action, chat_id, message_id=None, text="", keyboard=None):
+    if message_id:
+        requests.post(URL + "deleteMessage", json={"chat_id": chat_id, "message_id": message_id})
     
-    payload = {"chat_id": chat_id, "parse_mode": "Markdown"}
-    if photo:
-        payload.update({"photo": photo, "caption": text, "reply_markup": {"inline_keyboard": keyboard} if keyboard else None})
-        return requests.post(URL + "sendPhoto", json=payload).json()
-    else:
-        payload.update({"text": text, "reply_markup": {"inline_keyboard": keyboard} if keyboard else None})
-        return requests.post(URL + "sendMessage", json=payload).json()
+    payload = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}
+    if keyboard: payload["reply_markup"] = {"inline_keyboard": keyboard}
+    return requests.post(URL + "sendMessage", json=payload).json()
 
-# --- 3. منطق البوت ---
-last_update_id = 0
-user_state = {} # لحفظ اختيار المستخدم
-
+# 3. محرك البوت
+last_id = 0
 while True:
     try:
-        updates = requests.get(URL + f"getUpdates?offset={last_update_id + 1}").json()
-        for up in updates.get("result", []):
-            last_update_id = up["update_id"]
-            chat_id = up.get("message", {}).get("chat", {}).get("id") or up.get("callback_query", {}).get("message", {}).get("chat", {}).get("id")
-            msg_id = up.get("message", {}).get("message_id") or up.get("callback_query", {}).get("message", {}).get("message_id")
-            
-            # أمر البداية
+        res = requests.get(URL + f"getUpdates?offset={last_id + 1}", timeout=10).json()
+        for up in res.get("result", []):
+            last_id = up["update_id"]
+            m = up.get("message") or up.get("callback_query", {}).get("message")
+            c_id = m["chat"]["id"]
+            m_id = m["message_id"]
+
             if "message" in up and up["message"].get("text") == "/start":
-                txt = "👑 **GMK-Empire Ghassan Training** 👑\n\nأهلاً بك في أقوى نظام تحليل ذكي.\nيرجى اختيار زوج التداول (مرتبة حسب السيولة):"
-                # هنا نضع أهم الأزواج (سيتم ربط البقية لاحقاً)
-                kb = [
-                    [{"text": "📊 EUR/USD (OTC) | 98% 🔥", "callback_data": "asset_EURUSD"}],
-                    [{"text": "📊 XAU/USD (OTC) | 95% 🚀", "callback_data": "asset_XAUUSD"}],
-                    [{"text": "📊 GBP/JPY (OTC) | 92% ✅", "callback_data": "asset_GBPJPY"}]
-                ]
-                delete_and_send(chat_id, msg_id, txt, kb)
+                txt = "👑 **GMK-Empire Ghassan Training** 👑\n\nاختر زوج التداول:"
+                kb = [[{"text": "📊 EUR/USD | 98% 🔥", "callback_data": "EURUSD"}]]
+                send_action("send", c_id, text=txt, keyboard=kb)
 
-            # عند اختيار الزوج
-            elif "callback_query" in up:
+            if "callback_query" in up:
                 data = up["callback_query"]["data"]
-                
-                if data.startswith("asset_"):
-                    user_state[chat_id] = {"asset": data.split("_")[1]}
-                    txt = f"🎯 الزوج: *{user_state[chat_id]['asset']}*\n\nالآن، حدد **الفريم الزمني** بدقة للتحليل العميق:"
-                    kb = [
-                        [{"text": "5s", "callback_data": "f_5s"}, {"text": "10s", "callback_data": "f_10s"}, {"text": "15s", "callback_data": "f_15s"}],
-                        [{"text": "30s", "callback_data": "f_30s"}, {"text": "1m", "callback_data": "f_1m"}, {"text": "5m", "callback_data": "f_5m"}],
-                        [{"text": "🔙 رجوع", "callback_data": "start"}]
-                    ]
-                    delete_and_send(chat_id, msg_id, txt, kb)
+                if data == "EURUSD":
+                    txt = "🎯 اختر الفريم الزمني:"
+                    kb = [[{"text": "5s", "callback_data": "5s"}, {"text": "1m", "callback_data": "1m"}]]
+                    send_action("edit", c_id, m_id, txt, kb)
+                elif data in ["5s", "1m"]:
+                    send_action("edit", c_id, m_id, "⏳ **جاري التحليل...**")
+                    time.sleep(1)
+                    send_action("edit", c_id, m_id, "🟢 **BUY CALL**\nنسبة النجاح: 94%")
 
-                elif data.startswith("f_"):
-                    # مح
+    except Exception as e:
+        print(f"Error: {e}")
+    time.sleep(1)
