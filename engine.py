@@ -5,7 +5,7 @@ import os
 import requests
 import time
 
-# 1. قسم البوابة الوهمية (عشان Render ما يطفي البوت)
+# 1. قسم البوابة الوهمية (عشان يضل البوت Live وما يطفي)
 def run_vocal_server():
     class HealthCheckHandler(http.server.SimpleHTTPRequestHandler):
         def do_GET(self):
@@ -23,27 +23,29 @@ def run_vocal_server():
 # تشغيل السيرفر في الخلفية
 threading.Thread(target=run_vocal_server, daemon=True).start()
 
-# 2. إعدادات تليجرام وبوت التداول (تأكد من صحة التوكن والـ ID)
-TOKEN = "7724147771:AAH8N_1R_pXq2L5_Z9v9Z_Z9v9Z9v9Z9v9Z" # حط التوكن تبعك هون
-CHAT_ID = "6190543210" # حط معرف الشات تبعك هون
+# 2. إعدادات تليجرام الخاصة بك (تم التحديث)
+TOKEN = "8768413194:AAGlUEfDY3lrnQKl_mvehVA-BLv6RJb1adI"
+CHAT_ID = "7692680668"
 
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     payload = {"chat_id": CHAT_ID, "text": message}
     try:
-        requests.post(url, json=payload)
+        response = requests.post(url, json=payload)
+        print(f"Telegram Response: {response.text}")
     except Exception as e:
         print(f"Telegram error: {e}")
 
-# 3. حلقة العمل الأساسية (البوت بيفضل شغال وما بيخرج)
-print("🚀 البوت بدأ العمل ومراقب السوق...")
-send_telegram_message("✅ تم تشغيل البوت بنجاح على Render!")
+# 3. تشغيل البوت
+print("🚀 جاري فحص الاتصال وتفعيل البوت...")
+time.sleep(2) # انتظار بسيط للتأكد من استقرار السيرفر
+send_telegram_message("🔔 يا غسان، البوت اشتغل بنجاح على Render وهو الآن يراقب السوق!")
 
+# حلقة البقاء (Loop) عشان يضل شغال 24 ساعة
 while True:
     try:
-        # هون بكون كود التحليل تبعك (مثال بسيط)
-        # print("تحليل السوق الحالي...") 
-        time.sleep(30) # البوت بينتظر 30 ثانية وبيرجع يكرر عشان ما يطفي
+        # هنا يمكنك إضافة كود تحليل الصفقات لاحقاً
+        time.sleep(60) 
     except Exception as e:
-        print(f"Main loop error: {e}")
+        print(f"Loop error: {e}")
         time.sleep(10)
