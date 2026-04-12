@@ -1,69 +1,69 @@
-import http.server, socketserver, threading, os, requests, time
+import os, requests, time, threading, http.server, socketserver
 
-# 1. السيرفر الوهمي
+# --- 1. إعدادات السيرفر لبقاء البوت حياً ---
 def run_vocal_server():
-    class HealthCheckHandler(http.server.SimpleHTTPRequestHandler):
-        def do_GET(self):
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b"Bot is Running!")
     port = int(os.environ.get("PORT", 10000))
-    with socketserver.TCPServer(("", port), HealthCheckHandler) as httpd:
+    with socketserver.TCPServer(("", port), http.server.SimpleHTTPRequestHandler) as httpd:
         httpd.serve_forever()
 threading.Thread(target=run_vocal_server, daemon=True).start()
 
-# 2. الإعدادات والبيانات
+# --- 2. بيانات البوت ---
 TOKEN = "8768413194:AAGlUEfDY3lrnQKl_mvehVA-BLv6RJb1adI"
-CHAT_ID = "7692680668"
+URL = f"https://api.telegram.org/bot{TOKEN}/"
 
-def send_msg(text, keyboard=None):
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    payload = {"chat_id": CHAT_ID, "text": text, "parse_mode": "Markdown"}
-    if keyboard: payload["reply_markup"] = {"inline_keyboard": keyboard}
-    return requests.post(url, json=payload).json()
+# صور الفخامة (ثور ودب)
+BULL_IMG = "https://w0.peakpx.com/wallpaper/144/952/HD-wallpaper-bull-stock-market-neon-green-bull-trading-green-bull.jpg"
+BEAR_IMG = "https://w0.peakpx.com/wallpaper/601/104/HD-wallpaper-bear-market-stock-market-trading-red-bear.jpg"
 
-# القائمة الأساسية
-def show_assets():
-    assets = [
-        {"n": "EUR/USD (OTC)", "p": 92, "s": "🔥 ممتاز"},
-        {"n": "XAU/USD (OTC)", "p": 89, "s": "✅ جيد جداً"},
-        {"n": "GBP/JPY (OTC)", "p": 85, "s": "⚠️ متوسط"},
-    ]
-    kb = [[{"text": f"📊 {a['n']} | {a['p']}% | {a['s']}", "callback_data": f"asset_{a['n']}"}] for a in assets]
-    send_msg("✨ **لوحة التحكم الاحترافية** ✨\n\nاختر الزوج المطلوب للتحليل:", kb)
+# دالة لمسح الرسائل السابقة وإرسال جديد
+def delete_and_send(chat_id, message_id, text, keyboard=None, photo=None):
+    try: requests.post(URL + "deleteMessage", json={"chat_id": chat_id, "message_id": message_id})
+    except: pass
+    
+    payload = {"chat_id": chat_id, "parse_mode": "Markdown"}
+    if photo:
+        payload.update({"photo": photo, "caption": text, "reply_markup": {"inline_keyboard": keyboard} if keyboard else None})
+        return requests.post(URL + "sendPhoto", json=payload).json()
+    else:
+        payload.update({"text": text, "reply_markup": {"inline_keyboard": keyboard} if keyboard else None})
+        return requests.post(URL + "sendMessage", json=payload).json()
 
-# قائمة الفريمات (بعد اختيار الزوج)
-def show_timeframes(asset_name):
-    times = [
-        [{"text": "5 ثواني", "callback_data": "t_5s"}, {"text": "10 ثواني", "callback_data": "t_10s"}],
-        [{"text": "15 ثانية", "callback_data": "t_15s"}, {"text": "30 ثانية", "callback_data": "t_30s"}],
-        [{"text": "1 دقيقة", "callback_data": "t_1m"}, {"text": "5 دقائق", "callback_data": "t_5m"}],
-        [{"text": "🔙 العودة للأزواج", "callback_data": "main_menu"}]
-    ]
-    send_msg(f"🎯 تم اختيار: **{asset_name}**\n\nالآن اختر **الفريم الزمني** ومدة الصفقة:", times)
+# --- 3. منطق البوت ---
+last_update_id = 0
+user_state = {} # لحفظ اختيار المستخدم
 
-# 3. محرك الاستقبال (المراقب)
-last_id = 0
 while True:
     try:
-        res = requests.get(f"https://api.telegram.org/bot{TOKEN}/getUpdates?offset={last_id+1}").json()
-        for up in res.get("result", []):
-            last_id = up["update_id"]
+        updates = requests.get(URL + f"getUpdates?offset={last_update_id + 1}").json()
+        for up in updates.get("result", []):
+            last_update_id = up["update_id"]
+            chat_id = up.get("message", {}).get("chat", {}).get("id") or up.get("callback_query", {}).get("message", {}).get("chat", {}).get("id")
+            msg_id = up.get("message", {}).get("message_id") or up.get("callback_query", {}).get("message", {}).get("message_id")
             
-            # معالجة الرسائل النصية
-            if "message" in up:
-                if up["message"].get("text") == "/start": show_assets()
-            
-            # معالجة ضغطات الأزرار (Callback)
-            if "callback_query" in up:
+            # أمر البداية
+            if "message" in up and up["message"].get("text") == "/start":
+                txt = "👑 **GMK-Empire Ghassan Training** 👑\n\nأهلاً بك في أقوى نظام تحليل ذكي.\nيرجى اختيار زوج التداول (مرتبة حسب السيولة):"
+                # هنا نضع أهم الأزواج (سيتم ربط البقية لاحقاً)
+                kb = [
+                    [{"text": "📊 EUR/USD (OTC) | 98% 🔥", "callback_data": "asset_EURUSD"}],
+                    [{"text": "📊 XAU/USD (OTC) | 95% 🚀", "callback_data": "asset_XAUUSD"}],
+                    [{"text": "📊 GBP/JPY (OTC) | 92% ✅", "callback_data": "asset_GBPJPY"}]
+                ]
+                delete_and_send(chat_id, msg_id, txt, kb)
+
+            # عند اختيار الزوج
+            elif "callback_query" in up:
                 data = up["callback_query"]["data"]
+                
                 if data.startswith("asset_"):
-                    show_timeframes(data.replace("asset_", ""))
-                elif data == "main_menu":
-                    show_assets()
-                elif data.startswith("t_"):
-                    send_msg(f"⚡ **جاري التحليل العميق...**\nالفريم: {data.replace('t_', '')}\nالنتيجة ستظهر خلال ثوانٍ ⏳")
-                    # (هنا سنضع كود التحليل الحقيقي في الخطوة القادمة)
-                    
-    except: pass
-    time.sleep(1)
+                    user_state[chat_id] = {"asset": data.split("_")[1]}
+                    txt = f"🎯 الزوج: *{user_state[chat_id]['asset']}*\n\nالآن، حدد **الفريم الزمني** بدقة للتحليل العميق:"
+                    kb = [
+                        [{"text": "5s", "callback_data": "f_5s"}, {"text": "10s", "callback_data": "f_10s"}, {"text": "15s", "callback_data": "f_15s"}],
+                        [{"text": "30s", "callback_data": "f_30s"}, {"text": "1m", "callback_data": "f_1m"}, {"text": "5m", "callback_data": "f_5m"}],
+                        [{"text": "🔙 رجوع", "callback_data": "start"}]
+                    ]
+                    delete_and_send(chat_id, msg_id, txt, kb)
+
+                elif data.startswith("f_"):
+                    # مح
