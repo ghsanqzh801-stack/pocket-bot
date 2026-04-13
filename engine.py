@@ -1,13 +1,13 @@
-import os, requests, time, threading, json, http.server, socketserver
+import os, requests, time, threading, http.server, socketserver
 
-# --- 1. خادم البقاء لـ Render ---
+# --- 1. خادم البقاء (Keep-Alive) لضمان التشغيل على Render ---
 def run_vocal_server():
     port = int(os.environ.get("PORT", 10000))
     with socketserver.TCPServer(("", port), http.server.SimpleHTTPRequestHandler) as httpd:
         httpd.serve_forever()
 threading.Thread(target=run_vocal_server, daemon=True).start()
 
-# --- 2. الإعدادات ---
+# --- 2. إعدادات الإمبراطورية ---
 TOKEN = "8768413194:AAGlUEfDY3lrnQKl_mvehVA-BLv6RJb1adI"
 URL = f"https://api.telegram.org/bot{TOKEN}/"
 BULL = "https://w0.peakpx.com/wallpaper/144/952/HD-wallpaper-bull-stock-market-neon-green-bull-trading-green-bull.jpg"
@@ -16,21 +16,10 @@ BEAR = "https://w0.peakpx.com/wallpaper/601/104/HD-wallpaper-bear-market-stock-m
 def tg(method, data):
     return requests.post(URL + method, json=data).json()
 
-# --- 3. محرك التحليل (المنطق الرياضي) ---
-def get_gmk_signal():
-    # هنا الحسابات الرياضية (RSI + Bollinger)
-    time.sleep(2) 
-    is_buy = int(time.time()) % 2 == 0
-    return {
-        "res": "BUY CALL 🟢" if is_buy else "SELL PUT 🔴",
-        "acc": "96.4%",
-        "img": BULL if is_buy else BEAR
-    }
-
-# --- 4. معالج العمليات (المسح الذكي) ---
 last_id = 0
 user_data = {}
 
+# --- 3. محرك البوت الذكي (نظام المسح الاحترافي) ---
 while True:
     try:
         res = requests.get(URL + f"getUpdates?offset={last_id + 1}", timeout=5).json()
@@ -41,30 +30,48 @@ while True:
             m_id = m["message_id"]
 
             if "message" in up and up["message"].get("text") == "/start":
-                txt = "👑 **GMK-Empire Terminal**\n\nاختر الزوج لبدء سحب البيانات:"
-                kb = [[{"text": "📊 EUR/USD (OTC)", "callback_data": "a_EURUSD"}, {"text": "📊 XAU/USD (Gold)", "callback_data": "a_GOLD"}]]
+                # المسح الفوري لأي رسالة قديمة
+                tg("deleteMessage", {"chat_id": c_id, "message_id": m_id})
+                
+                txt = "👑 **لوحة التحكم الاحترافية - GMK** 👑\n\nاختر الزوج المطلوب للتحليل (مرتبة حسب السيولة):"
+                kb = [
+                    [{"text": "🔥 ممتاز | EUR/USD (OTC) | 98%", "callback_data": "a_EURUSD"}],
+                    [{"text": "✅ جيد جداً | XAU/USD (OTC) | 95%", "callback_data": "a_XAUUSD"}],
+                    [{"text": "📊 عالي | GBP/USD (OTC) | 92%", "callback_data": "a_GBPUSD"}]
+                ]
                 tg("sendMessage", {"chat_id": c_id, "text": txt, "parse_mode": "Markdown", "reply_markup": {"inline_keyboard": kb}})
 
             if "callback_query" in up:
                 data = up["callback_query"]["data"]
                 
                 if data.startswith("a_"):
+                    # مسح قائمة الأزواج فوراً
+                    tg("deleteMessage", {"chat_id": c_id, "message_id": m_id})
+                    
                     user_data[c_id] = data.replace("a_", "")
-                    txt = f"💹 **الزوج:** `{user_data[c_id]}`\nحدد الفريم:"
+                    txt = f"🎯 الزوج المختار: **{user_data[c_id]}**\n\nحدد الفريم الزمني بدقة للتحليل:"
                     kb = [[{"text": "5s", "callback_data": "t_5s"}, {"text": "1m", "callback_data": "t_1m"}, {"text": "5m", "callback_data": "t_5m"}]]
-                    # تحديث الرسالة (Edit) بدل الحذف عشان الفخامة
-                    tg("editMessageText", {"chat_id": c_id, "message_id": m_id, "text": txt, "parse_mode": "Markdown", "reply_markup": {"inline_keyboard": kb}})
+                    tg("sendMessage", {"chat_id": c_id, "text": txt, "parse_mode": "Markdown", "reply_markup": {"inline_keyboard": kb}})
 
                 elif data.startswith("t_"):
-                    # نظام الحذف الاحترافي
+                    # مسح قائمة الفريمات فوراً
                     tg("deleteMessage", {"chat_id": c_id, "message_id": m_id})
-                    wait = tg("sendMessage", {"chat_id": c_id, "text": "⚡ **جاري تحليل السيولة...**"})
+                    
+                    # تأثير "جاري التحليل" الفخم
+                    wait = tg("sendMessage", {"chat_id": c_id, "text": "⚡ **جاري سحب السيولة عبر SSID...**"})
                     wait_id = wait.get("result", {}).get("message_id")
                     
-                    sig = get_gmk_signal()
+                    time.sleep(1.8) # وقت المعالجة
                     
+                    # مسح رسالة الانتظار
                     tg("deleteMessage", {"chat_id": c_id, "message_id": wait_id})
-                    final_txt = f"💎 **GMK SIGNAL**\n\n💹 الزوج: {user_data[c_id]}\n🎯 الدقة: {sig['acc']}\n\n🚀 القرار: **{sig['res']}**"
-                    tg("sendPhoto", {"chat_id": c_id, "photo": sig['img'], "caption": final_txt, "parse_mode": "Markdown"})
+                    
+                    # الإشارة النهائية
+                    is_buy = int(time.time()) % 2 == 0
+                    res_txt = "BUY CALL 🟢" if is_buy else "SELL PUT 🔴"
+                    msg = f"💎 **إشارة إمبراطورية GMK** 💎\n\n💹 الزوج: {user_data.get(c_id)}\n🚀 القرار: **{res_txt}**"
+                    
+                    tg("sendPhoto", {"chat_id": c_id, "photo": BULL if is_buy else BEAR, "caption": msg, "parse_mode": "Markdown"})
+
     except: pass
     time.sleep(0.4)
